@@ -15,10 +15,16 @@ class Feedback(BaseModel):
     next: list[str]
 
 
+class ScorecardEntry(BaseModel):
+    topic: str
+    score: float
+
+
 class Progress(BaseModel):
     topicsCovered: int
     totalTopics: int
     questionsAsked: int
+    scorecard: list[ScorecardEntry] = []
 
 
 class InterviewResponse(BaseModel):

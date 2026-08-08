@@ -1,3 +1,4 @@
+import random
 from app.curriculum import build_topic_plan
 from app import llm
 
@@ -7,10 +8,15 @@ MIN_TOPICS = 4
 
 
 def _progress(state: dict) -> dict:
+    scorecard = [
+        {"topic": title, "score": round(sum(scores) / len(scores), 1)}
+        for title, scores in state["topic_scores"].items() if scores
+    ]
     return {
         "topicsCovered": state["topic_index"] + 1,
         "totalTopics": len(state["topics"]),
         "questionsAsked": state["question_count"],
+        "scorecard": scorecard,
     }
 
 
@@ -34,6 +40,8 @@ def start_session(session_id: str, candidate: dict) -> dict:
         "transcript": [],
         "current_question": None,
         "done": False,
+        "topic_scores": {t["title"]: [] for t in topics},
+        "answer_log": [],
     }
     SESSIONS[session_id] = state
 
@@ -63,10 +71,9 @@ def continue_session(session_id: str, message: str) -> dict:
     if state["done"]:
         return {"reply": "This interview has already concluded.", "done": True}
 
-    state["transcript"].append({"role": "candidate", "content": message,
-                                 "day": state["topics"][state["topic_index"]]["day"]})
-
     topic = state["topics"][state["topic_index"]]
+    state["transcript"].append({"role": "candidate", "content": message, "day": topic["day"]})
+    state["answer_log"].append({"day": topic["day"], "topic": topic["title"], "answer": message})
 
     days_covered = len({t["day"] for t in state["topics"][:state["topic_index"] + 1]})
     ready_to_wrap = (state["question_count"] >= 8 and days_covered >= MIN_TOPICS
@@ -77,9 +84,13 @@ def continue_session(session_id: str, message: str) -> dict:
         return _finish_interview(state)
 
     if state["sub_step"] == 1:
-        followup = llm.generate_followup(
+        result = llm.generate_adaptive_followup(
             state["candidate_name"], topic, state["current_question"], message
         )
+        score = result.get("score", 3)
+        followup = result.get("followup", "Can you tell me more about that?")
+
+        state["topic_scores"][topic["title"]].append(score)
         state["transcript"].append({"role": "interviewer", "content": followup, "day": topic["day"]})
         state["current_question"] = followup
         state["question_count"] += 1
@@ -98,7 +109,15 @@ def continue_session(session_id: str, message: str) -> dict:
 
         state["topic_index"] += 1
         next_topic = state["topics"][state["topic_index"]]
-        bridge = llm.generate_transition_question(state["candidate_name"], topic, next_topic)
+
+        memory_snippet = None
+        if state["topic_index"] >= 2 and len(state["answer_log"]) >= 2 and random.random() < 0.6:
+            older = state["answer_log"][0]
+            memory_snippet = older["answer"][:140]
+
+        bridge = llm.generate_transition_question(
+            state["candidate_name"], topic, next_topic, memory_snippet=memory_snippet
+        )
         state["transcript"].append({"role": "interviewer", "content": bridge, "day": next_topic["day"]})
         state["current_question"] = bridge
         state["question_count"] += 1
@@ -114,7 +133,11 @@ def continue_session(session_id: str, message: str) -> dict:
 
 def _finish_interview(state: dict) -> dict:
     state["done"] = True
-    feedback = llm.generate_feedback(state["candidate_name"], state["job_role"], state["transcript"])
+    avg_scores = {
+        title: round(sum(scores) / len(scores), 1)
+        for title, scores in state["topic_scores"].items() if scores
+    }
+    feedback = llm.generate_feedback(state["candidate_name"], state["job_role"], state["transcript"], avg_scores)
     return {
         "reply": "That concludes our interview today. Thank you for your time — here is your feedback.",
         "done": True,
