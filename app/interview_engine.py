@@ -1,12 +1,17 @@
 from app.curriculum import build_topic_plan
 from app import llm
 
-# In-memory session store. sessionId -> state dict.
-# Fine for a hackathon submission (single process). Swap for Redis/DB for real prod use.
 SESSIONS: dict[str, dict] = {}
 
-QUESTIONS_PER_TOPIC = 2  # main + 1 follow-up = guarantees 2 * topics questions
 MIN_TOPICS = 4
+
+
+def _progress(state: dict) -> dict:
+    return {
+        "topicsCovered": state["topic_index"] + 1,
+        "totalTopics": len(state["topics"]),
+        "questionsAsked": state["question_count"],
+    }
 
 
 def start_session(session_id: str, candidate: dict) -> dict:
@@ -16,7 +21,6 @@ def start_session(session_id: str, candidate: dict) -> dict:
 
     topics = build_topic_plan(candidate, max_topics=5)
     if len(topics) < MIN_TOPICS:
-        # pad safety net in case candidate has very few missions
         topics = topics * ((MIN_TOPICS // max(len(topics), 1)) + 1)
         topics = topics[:MIN_TOPICS]
 
@@ -25,9 +29,9 @@ def start_session(session_id: str, candidate: dict) -> dict:
         "job_role": role,
         "topics": topics,
         "topic_index": 0,
-        "sub_step": 0,  # 0 = need main question, 1 = need follow-up
+        "sub_step": 0,
         "question_count": 0,
-        "transcript": [],  # [{"role": "interviewer"/"candidate", "content": str, "day": int}]
+        "transcript": [],
         "current_question": None,
         "done": False,
     }
@@ -39,9 +43,15 @@ def start_session(session_id: str, candidate: dict) -> dict:
     state["transcript"].append({"role": "interviewer", "content": opening, "day": first_topic["day"]})
     state["current_question"] = opening
     state["question_count"] = 1
-    state["sub_step"] = 1  # next candidate answer should trigger a follow-up
+    state["sub_step"] = 1
 
-    return {"reply": opening, "done": False}
+    return {
+        "reply": opening,
+        "done": False,
+        "currentTopic": first_topic["title"],
+        "topicRationale": first_topic["reason"],
+        "progress": _progress(state),
+    }
 
 
 def continue_session(session_id: str, message: str) -> dict:
@@ -67,7 +77,6 @@ def continue_session(session_id: str, message: str) -> dict:
         return _finish_interview(state)
 
     if state["sub_step"] == 1:
-        # give a follow-up on the same topic
         followup = llm.generate_followup(
             state["candidate_name"], topic, state["current_question"], message
         )
@@ -75,10 +84,15 @@ def continue_session(session_id: str, message: str) -> dict:
         state["current_question"] = followup
         state["question_count"] += 1
         state["sub_step"] = 2
-        return {"reply": followup, "done": False}
+        return {
+            "reply": followup,
+            "done": False,
+            "currentTopic": topic["title"],
+            "topicRationale": topic["reason"],
+            "progress": _progress(state),
+        }
 
     else:
-        # move to next topic, or wrap up if none left
         if state["topic_index"] + 1 >= len(state["topics"]):
             return _finish_interview(state)
 
@@ -89,7 +103,13 @@ def continue_session(session_id: str, message: str) -> dict:
         state["current_question"] = bridge
         state["question_count"] += 1
         state["sub_step"] = 1
-        return {"reply": bridge, "done": False}
+        return {
+            "reply": bridge,
+            "done": False,
+            "currentTopic": next_topic["title"],
+            "topicRationale": next_topic["reason"],
+            "progress": _progress(state),
+        }
 
 
 def _finish_interview(state: dict) -> dict:
@@ -99,4 +119,5 @@ def _finish_interview(state: dict) -> dict:
         "reply": "That concludes our interview today. Thank you for your time — here is your feedback.",
         "done": True,
         "feedback": feedback,
+        "progress": _progress(state),
     }

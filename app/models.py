@@ -15,7 +15,16 @@ class Feedback(BaseModel):
     next: list[str]
 
 
+class Progress(BaseModel):
+    topicsCovered: int
+    totalTopics: int
+    questionsAsked: int
+
+
 class InterviewResponse(BaseModel):
     reply: str
     done: bool
     feedback: Optional[Feedback] = None
+    currentTopic: Optional[str] = None
+    topicRationale: Optional[str] = None
+    progress: Optional[Progress] = None
