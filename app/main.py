@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-import os
+import json
+from pathlib import Path
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import InterviewRequest, InterviewResponse
@@ -17,10 +19,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
 
 @app.get("/")
 def health():
     return {"status": "ok", "service": "ai-interview-agent"}
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo_page():
+    return (STATIC_DIR / "chat.html").read_text()
+
+
+@app.get("/api/demo-candidate")
+def demo_candidate():
+    with open(DATA_DIR / "candidates.json") as f:
+        candidates = json.load(f)["candidates"]
+    return candidates[0]
 
 
 @app.post("/api/interview", response_model=InterviewResponse)
@@ -39,6 +56,4 @@ def interview(req: InterviewRequest):
         result = interview_engine.continue_session(session_id, req.message or "")
         return InterviewResponse(**result)
     except Exception as e:
-        key = os.environ.get("GEMINI_API_KEY", "")
-        debug = f"key_length={len(key)} key_start={key[:6]!r} key_end={key[-4:]!r}"
-        return InterviewResponse(reply=f"ERROR: {type(e).__name__}: {str(e)} | {debug}", done=True)
+        return InterviewResponse(reply=f"ERROR: {type(e).__name__}: {str(e)}", done=True)
