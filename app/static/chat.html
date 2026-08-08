@@ -14,64 +14,110 @@
     justify-content: center;
     padding: 24px;
   }
-  .app { width: 100%; max-width: 640px; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  p.subtitle { color: #999; font-size: 13px; margin-top: 0; margin-bottom: 20px; }
+  .layout {
+    width: 100%;
+    max-width: 920px;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.subtitle { color: #999; font-size: 13px; margin: 0 0 20px; }
+
+  .sidebar {
+    background: #1a1d24;
+    border-radius: 12px;
+    padding: 16px;
+    height: fit-content;
+    position: sticky;
+    top: 24px;
+  }
+  .sidebar h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin: 0 0 10px; }
+  .progress-bar-track { background: #2a2f3a; border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 6px; }
+  .progress-bar-fill { background: linear-gradient(90deg, #3b5bfd, #6b8bff); height: 100%; transition: width 0.4s ease; width: 0%; }
+  .progress-text { font-size: 12px; color: #999; margin-bottom: 20px; }
+
+  .topic-block { margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: #22262f; border-left: 3px solid #3b5bfd; }
+  .topic-name { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .topic-reason { font-size: 12px; color: #9aa; line-height: 1.4; }
+  .topic-label { font-size: 10px; text-transform: uppercase; color: #6b8bff; letter-spacing: 0.05em; margin-bottom: 4px; }
+
+  .chatPanel { display: flex; flex-direction: column; }
+  .persona-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, #3b5bfd, #6b2ffd);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: white; flex-shrink: 0;
+  }
+  .persona-name { font-size: 14px; font-weight: 600; }
+  .persona-role { font-size: 11px; color: #888; }
+
   #chat {
     background: #1a1d24;
     border-radius: 12px;
     padding: 16px;
-    height: 480px;
+    height: 440px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
-  .msg {
-    padding: 10px 14px;
-    border-radius: 14px;
-    max-width: 80%;
-    line-height: 1.4;
-    font-size: 14px;
-    white-space: pre-wrap;
-  }
+  .msg { padding: 10px 14px; border-radius: 14px; max-width: 82%; line-height: 1.4; font-size: 14px; white-space: pre-wrap; }
   .interviewer { background: #2a2f3a; align-self: flex-start; border-bottom-left-radius: 4px; }
   .candidate { background: #3b5bfd; align-self: flex-end; border-bottom-right-radius: 4px; }
   .feedback { background: #1e3a2a; border: 1px solid #2e5a3e; align-self: stretch; max-width: 100%; }
+  .feedback ul { margin: 4px 0 10px 18px; padding: 0; }
+
+  .typing-indicator { display: flex; gap: 4px; align-self: flex-start; padding: 12px 16px; background: #2a2f3a; border-radius: 14px; border-bottom-left-radius: 4px; }
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: #888; animation: blink 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
   #inputRow { display: flex; gap: 8px; margin-top: 12px; }
-  #answerInput {
-    flex: 1;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #333;
-    background: #1a1d24;
-    color: white;
-    font-size: 14px;
-  }
-  button {
-    padding: 12px 18px;
-    border-radius: 8px;
-    border: none;
-    background: #3b5bfd;
-    color: white;
-    font-size: 14px;
-    cursor: pointer;
-  }
+  #answerInput { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #1a1d24; color: white; font-size: 14px; }
+  button { padding: 12px 18px; border-radius: 8px; border: none; background: #3b5bfd; color: white; font-size: 14px; cursor: pointer; }
   button:disabled { opacity: 0.5; cursor: default; }
   #restartBtn { background: #444; margin-top: 10px; font-size: 12px; padding: 8px 12px; }
-  .loading { color: #888; font-style: italic; }
 </style>
 </head>
 <body>
-<div class="app">
-  <h1>AI Interview Agent</h1>
-  <p class="subtitle">Live demo — talking to the real <code>/api/interview</code> endpoint.</p>
-  <div id="chat"></div>
-  <div id="inputRow">
-    <input id="answerInput" type="text" placeholder="Type your answer..." />
-    <button id="sendBtn">Send</button>
+<div class="layout">
+  <div class="sidebar">
+    <h3>Interview Progress</h3>
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText">Starting...</div>
+
+    <div class="topic-block" id="topicBlock" style="display:none;">
+      <div class="topic-label">Currently discussing</div>
+      <div class="topic-name" id="topicName">—</div>
+      <div class="topic-reason" id="topicReason">—</div>
+    </div>
   </div>
-  <button id="restartBtn">Restart Interview</button>
+
+  <div class="chatPanel">
+    <h1>AI Interview Agent</h1>
+    <p class="subtitle">Live demo — talking to the real <code>/api/interview</code> endpoint.</p>
+
+    <div class="persona-header">
+      <div class="avatar">MO</div>
+      <div>
+        <div class="persona-name">Dr. Mira Okafor</div>
+        <div class="persona-role">Senior Technical Interviewer</div>
+      </div>
+    </div>
+
+    <div id="chat"></div>
+    <div id="inputRow">
+      <input id="answerInput" type="text" placeholder="Type your answer..." />
+      <button id="sendBtn">Send</button>
+    </div>
+    <button id="restartBtn">Restart Interview</button>
+  </div>
 </div>
 
 <script>
@@ -79,6 +125,11 @@ const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("answerInput");
 const sendBtn = document.getElementById("sendBtn");
 const restartBtn = document.getElementById("restartBtn");
+const progressFill = document.getElementById("progressFill");
+const progressText = document.getElementById("progressText");
+const topicBlock = document.getElementById("topicBlock");
+const topicName = document.getElementById("topicName");
+const topicReason = document.getElementById("topicReason");
 
 let sessionId = null;
 let candidate = null;
@@ -91,6 +142,33 @@ function addMessage(text, cls) {
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;
+}
+
+function showTyping() {
+  const div = document.createElement("div");
+  div.className = "typing-indicator";
+  div.id = "typingIndicator";
+  div.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById("typingIndicator");
+  if (el) el.remove();
+}
+
+function updateSidebar(data) {
+  if (data.currentTopic) {
+    topicBlock.style.display = "block";
+    topicName.textContent = data.currentTopic;
+    topicReason.textContent = data.topicRationale || "";
+  }
+  if (data.progress) {
+    const pct = Math.min(100, Math.round((data.progress.topicsCovered / data.progress.totalTopics) * 100));
+    progressFill.style.width = pct + "%";
+    progressText.textContent = `Topic ${data.progress.topicsCovered} of ${data.progress.totalTopics} · ${data.progress.questionsAsked} questions asked`;
+  }
 }
 
 function addFeedback(fb) {
@@ -106,9 +184,12 @@ function addFeedback(fb) {
 
 async function startInterview() {
   chatEl.innerHTML = "";
+  progressFill.style.width = "0%";
+  progressText.textContent = "Starting...";
+  topicBlock.style.display = "none";
   done = false;
   sessionId = "demo-" + Date.now();
-  const loading = addMessage("Connecting to interviewer... (may take 20-30s on first load)", "msg loading");
+  showTyping();
 
   const res = await fetch("/api/interview", {
     method: "POST",
@@ -116,8 +197,9 @@ async function startInterview() {
     body: JSON.stringify({ sessionId, candidate })
   });
   const data = await res.json();
-  loading.remove();
+  hideTyping();
   addMessage(data.reply, "interviewer");
+  updateSidebar(data);
   done = data.done;
 }
 
@@ -127,7 +209,7 @@ async function sendAnswer() {
   addMessage(text, "candidate");
   inputEl.value = "";
   sendBtn.disabled = true;
-  const loading = addMessage("...", "loading");
+  showTyping();
 
   const res = await fetch("/api/interview", {
     method: "POST",
@@ -135,13 +217,15 @@ async function sendAnswer() {
     body: JSON.stringify({ sessionId, message: text })
   });
   const data = await res.json();
-  loading.remove();
+  hideTyping();
   addMessage(data.reply, "interviewer");
+  updateSidebar(data);
   sendBtn.disabled = false;
 
   if (data.done) {
     done = true;
     if (data.feedback) addFeedback(data.feedback);
+    progressText.textContent = "Interview complete ✓";
   }
 }
 
