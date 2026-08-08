@@ -1,7 +1,7 @@
 import json
 import requests
 
-BASE_URL = "http://127.0.0.1:8000/api/interview"
+BASE_URL = BASE_URL = "https://interview-agent-lpzr.onrender.com/api/interview"
 SESSION_ID = "test-session-1"
 
 with open("data/candidates.json") as f:
